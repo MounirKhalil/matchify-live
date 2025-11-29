@@ -1,0 +1,33 @@
+project_id = "mwqjyukczekhnimillfn"
+
+[functions.chat]
+verify_jwt = true
+
+[functions.populate-embeddings]
+verify_jwt = true
+
+[functions.cv-autofill]
+verify_jwt = true
+
+[functions.headhunt-search]
+verify_jwt = true
+
+[functions.headhunt-external]
+verify_jwt = true
+
+[functions.generate-job-embeddings]
+verify_jwt = false
+
+[functions.auto-apply-cron]
+verify_jwt = false
+
+[functions.auto-apply-cron-v2]
+verify_jwt = false
+
+[functions.recruiter-chatbot-react]
+verify_jwt = true
+
+[[crons]]
+function = "auto-apply-cron-v2"
+cron = "0 2 * * *"
+timeout_seconds = 600
