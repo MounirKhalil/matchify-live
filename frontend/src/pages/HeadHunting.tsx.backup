@@ -1,0 +1,1104 @@
+import { useState, useEffect } from "react";
+import { RecruiterLayout } from "@/components/RecruiterLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Target,
+  Search,
+  Plus,
+  X,
+  Loader2,
+  TrendingUp,
+  MapPin,
+  Briefcase,
+  GraduationCap,
+  Award,
+  Github,
+  Linkedin,
+  Mail,
+  ExternalLink,
+  History
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { JOB_CATEGORIES } from "@/constants/jobCategories";
+import { CategoryFilterCombobox } from "@/components/CategoryFilterCombobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+
+interface SearchCriteria {
+  search_name: string;
+  job_title: string;
+  required_skills: string[];
+  preferred_skills: string[];
+  min_years_experience?: number;
+  max_years_experience?: number;
+  required_education_level?: string;
+  preferred_education_fields: string[];
+  required_locations: string[];
+  preferred_locations: string[];
+  categories: string[];
+  required_certifications: string[];
+  must_have_github: boolean;
+  must_have_linkedin: boolean;
+  must_have_portfolio: boolean;
+  keywords: string[];
+  exclude_keywords: string[];
+  detailed_requirements: string;
+  min_match_score: number;
+  max_results: number;
+}
+
+interface CandidateMatch {
+  candidate_id: string;
+  name: string;
+  family_name: string;
+  email: string;
+  location: string;
+  profile_image_url: string | null;
+  linkedin_url: string | null;
+  github_url: string | null;
+  match_score: number;
+  match_reasons: string[];
+  education: any[];
+  work_experience: any[];
+  skills: string[];
+  years_of_experience: number;
+}
+
+interface SavedSearch {
+  id: string;
+  search_name: string;
+  job_title: string;
+  created_at: string;
+  last_searched_at: string | null;
+  search_completed: boolean;
+  results: CandidateMatch[];
+}
+
+const EDUCATION_LEVELS = [
+  "High School",
+  "Associate's",
+  "Bachelor's",
+  "Master's",
+  "PhD/Doctorate"
+];
+
+const HeadHunting = () => {
+  const { toast } = useToast();
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<CandidateMatch[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [selectedSearch, setSelectedSearch] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("new-search");
+
+  // Form state
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>({
+    search_name: "",
+    job_title: "",
+    required_skills: [],
+    preferred_skills: [],
+    min_years_experience: undefined,
+    max_years_experience: undefined,
+    required_education_level: undefined,
+    preferred_education_fields: [],
+    required_locations: [],
+    preferred_locations: [],
+    categories: [],
+    required_certifications: [],
+    must_have_github: false,
+    must_have_linkedin: false,
+    must_have_portfolio: false,
+    keywords: [],
+    exclude_keywords: [],
+    detailed_requirements: "",
+    min_match_score: 70,
+    max_results: 50,
+  });
+
+  // Input states for adding items to arrays
+  const [requiredSkillInput, setRequiredSkillInput] = useState("");
+  const [preferredSkillInput, setPreferredSkillInput] = useState("");
+  const [educationFieldInput, setEducationFieldInput] = useState("");
+  const [requiredLocationInput, setRequiredLocationInput] = useState("");
+  const [preferredLocationInput, setPreferredLocationInput] = useState("");
+  const [certificationInput, setCertificationInput] = useState("");
+  const [keywordInput, setKeywordInput] = useState("");
+  const [excludeKeywordInput, setExcludeKeywordInput] = useState("");
+
+  useEffect(() => {
+    fetchSavedSearches();
+  }, []);
+
+  const fetchSavedSearches = async () => {
+    try {
+      const { data: recruiterProfile } = await supabase
+        .from("recruiter_profiles")
+        .select("id")
+        .single();
+
+      if (!recruiterProfile) return;
+
+      const { data, error } = await supabase
+        .from("headhunt_searches")
+        .select("*")
+        .eq("recruiter_id", recruiterProfile.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setSavedSearches(data || []);
+    } catch (error) {
+      console.error("Error fetching saved searches:", error);
+    }
+  };
+
+  const handleArrayAdd = (
+    value: string,
+    field: keyof SearchCriteria,
+    setter: (value: string) => void
+  ) => {
+    if (!value.trim()) return;
+    const currentArray = searchCriteria[field] as string[];
+    if (!currentArray.includes(value.trim())) {
+      setSearchCriteria({
+        ...searchCriteria,
+        [field]: [...currentArray, value.trim()],
+      });
+    }
+    setter("");
+  };
+
+  const handleArrayRemove = (index: number, field: keyof SearchCriteria) => {
+    const currentArray = searchCriteria[field] as string[];
+    setSearchCriteria({
+      ...searchCriteria,
+      [field]: currentArray.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleSearch = async () => {
+    if (!searchCriteria.search_name.trim() || !searchCriteria.job_title.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a search name and job title",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // 1. Get recruiter profile
+      const { data: recruiterProfile, error: recruiterError } = await supabase
+        .from("recruiter_profiles")
+        .select("id")
+        .single();
+
+      if (recruiterError) throw recruiterError;
+
+      // 2. Create headhunt search record
+      const { data: searchRecord, error: createError } = await supabase
+        .from("headhunt_searches")
+        .insert({
+          recruiter_id: recruiterProfile.id,
+          ...searchCriteria,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      toast({
+        title: "Search Created",
+        description: "Starting candidate search...",
+      });
+
+      // 3. Call edge function to perform search
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/headhunt-search`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            search_id: searchRecord.id,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Search failed");
+      }
+
+      setSearchResults(result.results || []);
+      setActiveTab("results");
+
+      toast({
+        title: "Search Complete",
+        description: `Found ${result.results.length} matching candidates`,
+      });
+
+      await fetchSavedSearches();
+    } catch (error: any) {
+      console.error("Search error:", error);
+      toast({
+        title: "Search Failed",
+        description: error.message || "Failed to perform search",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const loadSavedSearch = async (searchId: string) => {
+    const search = savedSearches.find(s => s.id === searchId);
+    if (!search) return;
+
+    setSelectedSearch(searchId);
+    setSearchResults(search.results || []);
+    setActiveTab("results");
+  };
+
+  const deleteSavedSearch = async (searchId: string) => {
+    try {
+      const { error } = await supabase
+        .from("headhunt_searches")
+        .delete()
+        .eq("id", searchId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Search Deleted",
+        description: "Saved search has been removed",
+      });
+
+      await fetchSavedSearches();
+      if (selectedSearch === searchId) {
+        setSelectedSearch(null);
+        setSearchResults([]);
+      }
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete saved search",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <RecruiterLayout>
+      <div className="container mx-auto px-4 py-6">
+        <div className="mb-8 flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-hero flex items-center justify-center shadow-glow">
+            <Target className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold">Head Hunting</h2>
+            <p className="text-muted-foreground">Find ideal candidates with AI-powered matching</p>
+          </div>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="new-search">New Search</TabsTrigger>
+            <TabsTrigger value="saved-searches">Saved Searches ({savedSearches.length})</TabsTrigger>
+            <TabsTrigger value="results">Results ({searchResults.length})</TabsTrigger>
+          </TabsList>
+
+          {/* NEW SEARCH TAB */}
+          <TabsContent value="new-search">
+            <Card className="border-border/60">
+              <CardHeader>
+                <CardTitle>Define Your Ideal Candidate</CardTitle>
+                <CardDescription>
+                  Specify detailed criteria to find the perfect match
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Basic Info */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="search_name">Search Name *</Label>
+                    <Input
+                      id="search_name"
+                      placeholder="e.g., Senior Full Stack Engineer Q1 2025"
+                      value={searchCriteria.search_name}
+                      onChange={(e) =>
+                        setSearchCriteria({ ...searchCriteria, search_name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="job_title">Job Title *</Label>
+                    <Input
+                      id="job_title"
+                      placeholder="e.g., Senior Full Stack Developer"
+                      value={searchCriteria.job_title}
+                      onChange={(e) =>
+                        setSearchCriteria({ ...searchCriteria, job_title: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Skills */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Skills & Technologies</h3>
+
+                  {/* Required Skills */}
+                  <div className="space-y-2">
+                    <Label>Required Skills (Must Have)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., React, TypeScript, Node.js"
+                        value={requiredSkillInput}
+                        onChange={(e) => setRequiredSkillInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(requiredSkillInput, "required_skills", setRequiredSkillInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(requiredSkillInput, "required_skills", setRequiredSkillInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.required_skills.map((skill, index) => (
+                        <Badge key={index} variant="default">
+                          {skill}
+                          <button
+                            onClick={() => handleArrayRemove(index, "required_skills")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Preferred Skills */}
+                  <div className="space-y-2">
+                    <Label>Preferred Skills (Nice to Have)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., AWS, Docker, GraphQL"
+                        value={preferredSkillInput}
+                        onChange={(e) => setPreferredSkillInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(preferredSkillInput, "preferred_skills", setPreferredSkillInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(preferredSkillInput, "preferred_skills", setPreferredSkillInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.preferred_skills.map((skill, index) => (
+                        <Badge key={index} variant="secondary">
+                          {skill}
+                          <button
+                            onClick={() => handleArrayRemove(index, "preferred_skills")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Experience */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Experience Requirements</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="min_years">Minimum Years</Label>
+                      <Input
+                        id="min_years"
+                        type="number"
+                        min="0"
+                        placeholder="e.g., 5"
+                        value={searchCriteria.min_years_experience || ""}
+                        onChange={(e) =>
+                          setSearchCriteria({
+                            ...searchCriteria,
+                            min_years_experience: e.target.value ? parseInt(e.target.value) : undefined,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_years">Maximum Years</Label>
+                      <Input
+                        id="max_years"
+                        type="number"
+                        min="0"
+                        placeholder="e.g., 10"
+                        value={searchCriteria.max_years_experience || ""}
+                        onChange={(e) =>
+                          setSearchCriteria({
+                            ...searchCriteria,
+                            max_years_experience: e.target.value ? parseInt(e.target.value) : undefined,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Education */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Education Requirements</h3>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="education_level">Required Education Level</Label>
+                    <Select
+                      value={searchCriteria.required_education_level || ""}
+                      onValueChange={(value) =>
+                        setSearchCriteria({ ...searchCriteria, required_education_level: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select minimum education level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EDUCATION_LEVELS.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Preferred Education Fields</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., Computer Science, Engineering"
+                        value={educationFieldInput}
+                        onChange={(e) => setEducationFieldInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(educationFieldInput, "preferred_education_fields", setEducationFieldInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(educationFieldInput, "preferred_education_fields", setEducationFieldInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.preferred_education_fields.map((field, index) => (
+                        <Badge key={index} variant="secondary">
+                          {field}
+                          <button
+                            onClick={() => handleArrayRemove(index, "preferred_education_fields")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Location */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Location Preferences</h3>
+
+                  <div className="space-y-2">
+                    <Label>Required Locations</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., New York, Remote"
+                        value={requiredLocationInput}
+                        onChange={(e) => setRequiredLocationInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(requiredLocationInput, "required_locations", setRequiredLocationInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(requiredLocationInput, "required_locations", setRequiredLocationInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.required_locations.map((loc, index) => (
+                        <Badge key={index} variant="default">
+                          {loc}
+                          <button
+                            onClick={() => handleArrayRemove(index, "required_locations")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Preferred Locations</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., San Francisco, London"
+                        value={preferredLocationInput}
+                        onChange={(e) => setPreferredLocationInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(preferredLocationInput, "preferred_locations", setPreferredLocationInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(preferredLocationInput, "preferred_locations", setPreferredLocationInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.preferred_locations.map((loc, index) => (
+                        <Badge key={index} variant="secondary">
+                          {loc}
+                          <button
+                            onClick={() => handleArrayRemove(index, "preferred_locations")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Categories */}
+                <div className="space-y-2">
+                  <Label>Job Categories</Label>
+                  <CategoryFilterCombobox
+                    selectedCategories={searchCriteria.categories}
+                    onCategoryChange={(categories) =>
+                      setSearchCriteria({ ...searchCriteria, categories })
+                    }
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Certifications */}
+                <div className="space-y-2">
+                  <Label>Required Certifications</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g., AWS Certified, PMP"
+                      value={certificationInput}
+                      onChange={(e) => setCertificationInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleArrayAdd(certificationInput, "required_certifications", setCertificationInput);
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        handleArrayAdd(certificationInput, "required_certifications", setCertificationInput)
+                      }
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {searchCriteria.required_certifications.map((cert, index) => (
+                      <Badge key={index} variant="default">
+                        {cert}
+                        <button
+                          onClick={() => handleArrayRemove(index, "required_certifications")}
+                          className="ml-2"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Social Requirements */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Profile Requirements</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="must_github">Must Have GitHub Profile</Label>
+                      <Switch
+                        id="must_github"
+                        checked={searchCriteria.must_have_github}
+                        onCheckedChange={(checked) =>
+                          setSearchCriteria({ ...searchCriteria, must_have_github: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="must_linkedin">Must Have LinkedIn Profile</Label>
+                      <Switch
+                        id="must_linkedin"
+                        checked={searchCriteria.must_have_linkedin}
+                        onCheckedChange={(checked) =>
+                          setSearchCriteria({ ...searchCriteria, must_have_linkedin: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="must_portfolio">Must Have Portfolio/Projects</Label>
+                      <Switch
+                        id="must_portfolio"
+                        checked={searchCriteria.must_have_portfolio}
+                        onCheckedChange={(checked) =>
+                          setSearchCriteria({ ...searchCriteria, must_have_portfolio: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Keywords */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Keywords</h3>
+
+                  <div className="space-y-2">
+                    <Label>Must Include Keywords</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., leadership, startup"
+                        value={keywordInput}
+                        onChange={(e) => setKeywordInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(keywordInput, "keywords", setKeywordInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => handleArrayAdd(keywordInput, "keywords", setKeywordInput)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.keywords.map((kw, index) => (
+                        <Badge key={index} variant="default">
+                          {kw}
+                          <button
+                            onClick={() => handleArrayRemove(index, "keywords")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Exclude Keywords</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g., freelance, contract"
+                        value={excludeKeywordInput}
+                        onChange={(e) => setExcludeKeywordInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleArrayAdd(excludeKeywordInput, "exclude_keywords", setExcludeKeywordInput);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          handleArrayAdd(excludeKeywordInput, "exclude_keywords", setExcludeKeywordInput)
+                        }
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {searchCriteria.exclude_keywords.map((kw, index) => (
+                        <Badge key={index} variant="destructive">
+                          {kw}
+                          <button
+                            onClick={() => handleArrayRemove(index, "exclude_keywords")}
+                            className="ml-2"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Detailed Requirements */}
+                <div className="space-y-2">
+                  <Label htmlFor="detailed_requirements">Detailed Requirements</Label>
+                  <Textarea
+                    id="detailed_requirements"
+                    placeholder="Provide additional details about the ideal candidate..."
+                    rows={6}
+                    value={searchCriteria.detailed_requirements}
+                    onChange={(e) =>
+                      setSearchCriteria({ ...searchCriteria, detailed_requirements: e.target.value })
+                    }
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Search Settings */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Search Settings</h3>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="min_score">Minimum Match Score (%)</Label>
+                      <Input
+                        id="min_score"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={searchCriteria.min_match_score}
+                        onChange={(e) =>
+                          setSearchCriteria({
+                            ...searchCriteria,
+                            min_match_score: parseInt(e.target.value) || 70,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_results">Maximum Results</Label>
+                      <Input
+                        id="max_results"
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={searchCriteria.max_results}
+                        onChange={(e) =>
+                          setSearchCriteria({
+                            ...searchCriteria,
+                            max_results: parseInt(e.target.value) || 50,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <Button
+                    onClick={handleSearch}
+                    disabled={isSearching}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-2 h-5 w-5" />
+                        Search Candidates
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* SAVED SEARCHES TAB */}
+          <TabsContent value="saved-searches">
+            <Card className="border-border/60">
+              <CardHeader>
+                <CardTitle>Your Saved Searches</CardTitle>
+                <CardDescription>
+                  View and manage your previous headhunt searches
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {savedSearches.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No saved searches yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {savedSearches.map((search) => (
+                      <Card key={search.id} className="p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg">{search.search_name}</h3>
+                            <p className="text-sm text-muted-foreground">{search.job_title}</p>
+                            <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                              <span>Created: {new Date(search.created_at).toLocaleDateString()}</span>
+                              {search.last_searched_at && (
+                                <span>
+                                  Last searched: {new Date(search.last_searched_at).toLocaleDateString()}
+                                </span>
+                              )}
+                              <span>Results: {search.results?.length || 0}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => loadSavedSearch(search.id)}
+                            >
+                              View Results
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteSavedSearch(search.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* RESULTS TAB */}
+          <TabsContent value="results">
+            <Card className="border-border/60">
+              <CardHeader>
+                <CardTitle>Search Results</CardTitle>
+                <CardDescription>
+                  {searchResults.length} candidates found matching your criteria
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {searchResults.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No results yet. Create a search to find candidates.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {searchResults.map((candidate) => (
+                      <Card key={candidate.candidate_id} className="p-6 hover:shadow-lg transition-shadow">
+                        <div className="flex items-start gap-4">
+                          <Avatar className="h-16 w-16">
+                            <AvatarImage src={candidate.profile_image_url || undefined} />
+                            <AvatarFallback>
+                              {candidate.name[0]}
+                              {candidate.family_name[0]}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <h3 className="text-xl font-semibold">
+                                  {candidate.name} {candidate.family_name}
+                                </h3>
+                                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {candidate.location}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-primary">
+                                  {candidate.match_score}%
+                                </div>
+                                <p className="text-xs text-muted-foreground">Match Score</p>
+                              </div>
+                            </div>
+
+                            <Progress value={candidate.match_score} className="h-2 mb-3" />
+
+                            {/* Match Reasons */}
+                            <div className="mb-3">
+                              <p className="text-sm font-medium mb-2">Why this candidate matches:</p>
+                              <div className="space-y-1">
+                                {candidate.match_reasons.map((reason, idx) => (
+                                  <div key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                    <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                    <span>{reason}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Quick Stats */}
+                            <div className="flex flex-wrap gap-4 mb-3 text-sm">
+                              <div className="flex items-center gap-1">
+                                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                <span>{candidate.years_of_experience} years exp.</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                                <span>{candidate.education?.length || 0} degrees</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Award className="h-4 w-4 text-muted-foreground" />
+                                <span>{candidate.skills?.length || 0} skills</span>
+                              </div>
+                            </div>
+
+                            {/* Skills */}
+                            {candidate.skills && candidate.skills.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-sm font-medium mb-2">Skills:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {candidate.skills.slice(0, 10).map((skill, idx) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {skill}
+                                    </Badge>
+                                  ))}
+                                  {candidate.skills.length > 10 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      +{candidate.skills.length - 10} more
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2">
+                              <Button size="sm" asChild>
+                                <a href={`mailto:${candidate.email}`}>
+                                  <Mail className="h-4 w-4 mr-1" />
+                                  Contact
+                                </a>
+                              </Button>
+                              {candidate.linkedin_url && (
+                                <Button size="sm" variant="outline" asChild>
+                                  <a
+                                    href={candidate.linkedin_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Linkedin className="h-4 w-4 mr-1" />
+                                    LinkedIn
+                                  </a>
+                                </Button>
+                              )}
+                              {candidate.github_url && (
+                                <Button size="sm" variant="outline" asChild>
+                                  <a
+                                    href={candidate.github_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Github className="h-4 w-4 mr-1" />
+                                    GitHub
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </RecruiterLayout>
+  );
+};
+
+export default HeadHunting;
