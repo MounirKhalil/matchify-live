@@ -1,0 +1,34 @@
+timestamp,operation_type,component,model,input_tokens,output_tokens,cost_usd,running_total_usd,notes
+2025-01-15T02:00:00Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,95000,0,0.0019,0.0019,Daily batch: 950 candidates
+2025-01-15T02:00:15Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,72000,0,0.00144,0.00334,Daily batch: 480 jobs
+2025-01-15T02:01:30Z,vector_search,MatchingOrchestrator,pgvector,0,0,0,0.00334,950 semantic searches (free)
+2025-01-15T02:02:45Z,rule_scoring,MatchingOrchestrator,custom,0,0,0,0.00334,Hybrid scoring for 4500 matches (free)
+2025-01-15T02:03:00Z,application_submission,MatchingOrchestrator,edge_function,0,0,0.0048,0.00814,48 applications submitted
+2025-01-15T02:03:10Z,metrics_save,MatchingOrchestrator,supabase_db,0,0,0,0.00814,Save run metrics (free)
+2025-01-15T08:30:22Z,chat_completion,ProfilePal,gpt-4-turbo-preview,245,312,0.01181,0.01995,User profile building conversation
+2025-01-15T08:31:05Z,chat_completion,ProfilePal,gpt-4-turbo-preview,278,405,0.01493,0.03488,Continued conversation
+2025-01-15T08:32:18Z,chat_completion,ProfilePal,gpt-4-turbo-preview,312,198,0.00906,0.04394,Profile update extraction
+2025-01-15T08:45:33Z,pdf_extraction,ProfilePal,cv_parser,0,0,0,0.04394,Parse CV PDF (free - local)
+2025-01-15T08:45:55Z,chat_completion,ProfilePal,gpt-4-turbo-preview,1842,856,0.04411,0.08805,CV content extraction with GPT-4
+2025-01-15T09:15:44Z,chat_completion,RecruiterAgent,gpt-4-turbo-preview,189,125,0.00564,0.09369,Parse recruiter search query
+2025-01-15T09:15:46Z,embedding_generation,RecruiterAgent,text-embedding-3-small,52,0,0.00001,0.09370,Generate search query embedding
+2025-01-15T09:15:47Z,vector_search,RecruiterAgent,pgvector,0,0,0,0.09370,Semantic candidate search (free)
+2025-01-15T09:16:12Z,linkedin_enrichment,RecruiterAgent,phantombuster,0,0,0.10,0.19370,Enrich 1 candidate profile from LinkedIn
+2025-01-15T09:17:08Z,chat_completion,RecruiterAgent,gpt-4-turbo-preview,534,278,0.01167,0.20537,Generate candidate summary
+2025-01-15T10:22:15Z,chat_completion,ProfilePal,gpt-4-turbo-preview,412,289,0.01279,0.21816,New user onboarding
+2025-01-15T11:05:37Z,chat_completion,RecruiterAgent,gpt-4-turbo-preview,298,445,0.01633,0.23449,Generate outreach message
+2025-01-15T14:30:00Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,8500,0,0.00017,0.23466,Real-time: 85 new profiles
+2025-01-15T14:45:22Z,chat_completion,ProfilePal,gpt-4-turbo-preview,345,412,0.01581,0.25047,Profile completion assistance
+2025-01-15T15:12:09Z,pdf_extraction,ProfilePal,cv_parser,0,0,0,0.25047,Parse CV PDF (free)
+2025-01-15T15:12:28Z,chat_completion,ProfilePal,gpt-4-turbo-preview,1654,723,0.03823,0.28870,CV extraction
+2025-01-15T16:40:55Z,chat_completion,RecruiterAgent,gpt-4-turbo-preview,412,189,0.00979,0.29849,Candidate search refinement
+2025-01-15T17:22:44Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,6200,0,0.00012,0.29861,Real-time: 62 new job postings
+2025-01-15T18:05:13Z,chat_completion,ProfilePal,gpt-4-turbo-preview,289,356,0.01357,0.31218,Skill recommendation conversation
+2025-01-15T19:33:27Z,linkedin_enrichment,RecruiterAgent,phantombuster,0,0,0.10,0.41218,Batch enrich 1 candidate
+2025-01-15T20:15:08Z,chat_completion,ProfilePal,gpt-4-turbo-preview,198,267,0.00999,0.42217,Profile review
+2025-01-16T02:00:00Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,98000,0,0.00196,0.42413,Daily batch: 980 candidates
+2025-01-16T02:00:16Z,embedding_generation,MatchingOrchestrator,text-embedding-3-small,75000,0,0.0015,0.42563,Daily batch: 500 jobs
+2025-01-16T02:01:35Z,vector_search,MatchingOrchestrator,pgvector,0,0,0,0.42563,980 semantic searches (free)
+2025-01-16T02:02:50Z,rule_scoring,MatchingOrchestrator,custom,0,0,0,0.42563,Hybrid scoring for 4850 matches
+2025-01-16T02:03:05Z,application_submission,MatchingOrchestrator,edge_function,0,0,0.0052,0.43083,52 applications submitted
+2025-01-16T02:03:15Z,metrics_save,MatchingOrchestrator,supabase_db,0,0,0,0.43083,Save run metrics
